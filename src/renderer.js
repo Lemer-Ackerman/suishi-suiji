@@ -139,7 +139,7 @@ function apply(next) {
   month = new Date(date.getFullYear(), date.getMonth(), 1, 12);
   $("page-title").textContent =
     state.date === state.today
-      ? "日笺"
+      ? "随时 · 随记"
       : `${date.getMonth() + 1}月${date.getDate()}日 · 往日记录`;
   $("menu-date").textContent =
     `${state.date}${state.date === state.today ? " · 今天" : ""}`;

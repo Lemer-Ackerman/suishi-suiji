@@ -35,7 +35,7 @@ jobs:
         with:
           run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
-          pattern: Daynote-*
+          pattern: Suishi-Suiji-*
           path: release-assets
           merge-multiple: true
       - name: Publish tested packages
@@ -49,4 +49,4 @@ jobs:
           test "$(find release-assets -maxdepth 1 -name '*.dmg' | wc -l)" -eq 2
           test "$(find release-assets -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
           (cd release-assets && sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt)
-          gh release create "v$VERSION" release-assets/* --repo "$REPO" --target "$RELEASE_SHA" --title "日笺 v$VERSION" --notes-file docs/release-notes.md
+          gh release create "v$VERSION" release-assets/* --repo "$REPO" --target "$RELEASE_SHA" --title "随时 · 随记 v$VERSION" --notes-file docs/release-notes.md

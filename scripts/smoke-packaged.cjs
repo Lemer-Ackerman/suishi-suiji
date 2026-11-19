@@ -19,7 +19,7 @@ const { parseEntries } = require("../src/entries.cjs");
     execFileSync(path.resolve("dist", setup), ["/S", `/D=${install}`], {
       timeout: 120000,
     });
-    executablePath = path.join(install, "日笺.exe");
+    executablePath = path.join(install, "随时 · 随记.exe");
     assert.ok(
       fs.existsSync(executablePath),
       "Installer must produce the executable",
@@ -29,13 +29,13 @@ const { parseEntries } = require("../src/entries.cjs");
     executablePath = path.resolve(
       "dist",
       folder,
-      "日笺.app/Contents/MacOS/日笺",
+      "随时 · 随记.app/Contents/MacOS/随时 · 随记",
     );
     execFileSync("/usr/bin/codesign", [
       "--verify",
       "--deep",
       "--strict",
-      path.resolve("dist", folder, "日笺.app"),
+      path.resolve("dist", folder, "随时 · 随记.app"),
     ]);
   }
   const app = await electron.launch({ executablePath });

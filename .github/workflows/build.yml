@@ -36,7 +36,7 @@ jobs:
         run: node scripts/smoke-packaged.cjs
       - uses: actions/upload-artifact@v4
         with:
-          name: Daynote-${{ runner.os }}
+          name: Suishi-Suiji-${{ runner.os }}
           path: |
             dist/*.exe
             dist/*.dmg

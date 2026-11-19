@@ -1,20 +1,22 @@
-# 日笺 · Daynote
+# 随时 · 随记
 
 一个聊天式桌面记事窗口。输入、发送，每条内容独立显示。默认置顶，按日期翻阅，在凌晨 4 点为你打开新的一页。
 
 支持 **Windows 10/11 x64** 和 **macOS（Apple Silicon / Intel）**。离线使用，笔记是普通 UTF-8 文本文件，无账号、无上传、无统计。
 
-![Daynote screenshot](docs/screenshot.png)
+![随时 · 随记界面](docs/screenshot.png)
+
+应用原名“日笺”，从 v1.0.1 起更名为“随时 · 随记”。升级继续使用原有 Daynote 数据目录，记录、草稿和设置保持兼容。
 
 ## 下载与安装
 
-在 [Releases](https://github.com/Lemer-Ackerman/daynote/releases) 下载：
+在 [Releases](https://github.com/Lemer-Ackerman/suishi-suiji/releases) 下载：
 
 - Windows：安装版 `*-setup.exe`，或无需安装的 `*-portable.exe`。
 - Apple Silicon Mac（M 系列）：`*-mac-arm64.dmg`。
 - Intel Mac：`*-mac-x64.dmg`。
 
-macOS 打开 DMG 后把“日笺”拖到 Applications；ZIP 是对应架构的备用包。
+macOS 打开 DMG 后把“随时 · 随记”拖到 Applications；ZIP 是对应架构的备用包。
 
 当前发布包未使用商业开发者证书签名或 Apple 公证，首次打开可能出现系统提示。确认下载自本仓库后，在 macOS 的“系统设置 → 隐私与安全性”允许打开；Windows 可能显示 SmartScreen 提示。正式面向公众推广前应配置代码签名与公证。
 
@@ -29,7 +31,7 @@ macOS 打开 DMG 后把“日笺”拖到 Applications；ZIP 是对应架构的�
 - **意外退出恢复**：输入时持续保存草稿，不等点击发送或正常退出。看到“草稿已保存”后，即使强制结束进程，重新打开也会恢复输入框内容。草稿按日期单独存放在笔记目录的隐藏子目录 `.drafts` 中，不创建当天的 `.txt`；发送成功后清除草稿。重开时如果当天没有草稿，会恢复最近一份未发送草稿所在日期。日历空心点表示该日有草稿。
 - **开机启动**：「⋯ → 设置 → 开机自动启动」可开关，默认关闭。启用后，下次登录电脑时在后台启动，不自动弹出窗口；按快捷键召出。请先把 macOS 应用放进 Applications，或安装 Windows 版本，再开启此选项。便携版需放在固定位置，移动后重新设置。
 - **复制 / 删除**：鼠标移到一条记录上可复制或删除；「⋯」也可操作当天全部记录。删除前弹窗确认。
-- **关闭**：「⋯ → 隐藏窗口」隐藏窗口，程序继续在系统托盘 / macOS 菜单栏运行。完全退出请使用设置或托盘中的“退出日笺”。
+- **关闭**：「⋯ → 隐藏窗口」隐藏窗口，程序继续在系统托盘 / macOS 菜单栏运行。完全退出请使用设置或托盘中的“退出随时 · 随记”。
 
 ## 保存位置
 

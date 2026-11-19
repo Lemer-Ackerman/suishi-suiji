@@ -26,7 +26,11 @@ const {
 } = require("./core.cjs");
 const { parseEntries, serializeEntries, newEntry } = require("./entries.cjs");
 const { createStartup } = require("./startup.cjs");
-app.setName("Daynote");
+// Keep the original data directory when changing the display name.
+const dataRoot = path.join(app.getPath("appData"), "Daynote");
+fs.mkdirSync(dataRoot, { recursive: true });
+app.setPath("userData", dataRoot);
+app.setName("随时 · 随记");
 if (process.platform === "win32") app.setAppUserModelId("com.lemer.daynote");
 if (!app.isPackaged && process.env.DAYNOTE_TEST_DATA)
   app.setPath("userData", process.env.DAYNOTE_TEST_DATA);
@@ -155,7 +159,7 @@ function setShortcut(shortcut) {
 function updateTray() {
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "显示 / 隐藏日笺", click: toggle },
+      { label: "显示 / 隐藏随时 · 随记", click: toggle },
       {
         label: "窗口置顶",
         type: "checkbox",
@@ -168,7 +172,7 @@ function updateTray() {
       },
       { label: "打开笔记文件夹", click: () => shell.openPath(store.root) },
       { type: "separator" },
-      { label: "退出日笺", click: () => app.quit() },
+      { label: "退出随时 · 随记", click: () => app.quit() },
     ]),
   );
 }
@@ -182,7 +186,7 @@ function createWindow() {
     alwaysOnTop: true,
     frame: false,
     backgroundColor: "#f8f7f3",
-    title: "日笺 · Daynote",
+    title: "随时 · 随记",
     icon: path.join(__dirname, "../build/icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -280,16 +284,16 @@ else {
         .resize({ width: 18, height: 18 });
       if (process.platform === "darwin") icon.setTemplateImage(true);
       tray = new Tray(icon);
-      tray.setToolTip("日笺 · Daynote");
+      tray.setToolTip("随时 · 随记");
       tray.on("click", toggle);
       updateTray();
       const menu = [
         {
-          label: "日笺",
+          label: "随时 · 随记",
           submenu: [
-            { label: "显示日笺", click: show },
+            { label: "显示随时 · 随记", click: show },
             {
-              label: "退出日笺",
+              label: "退出随时 · 随记",
               accelerator: "CommandOrControl+Q",
               click: () => app.quit(),
             },
@@ -428,7 +432,7 @@ else {
       app.on("activate", show);
     })
     .catch((error) => {
-      dialog.showErrorBox("日笺无法启动", error.message);
+      dialog.showErrorBox("随时 · 随记无法启动", error.message);
       app.exit(1);
     });
   app.on("before-quit", (event) => {

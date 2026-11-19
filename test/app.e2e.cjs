@@ -15,7 +15,7 @@ async function launch() {
     },
   });
   page = await app.firstWindow();
-  await expect(page.locator("#page-title")).toHaveText("日笺");
+  await expect(page.locator("#page-title")).toHaveText("随时 · 随记");
   await expect(page.locator("#editor")).toBeEnabled();
 }
 async function menu(item) {

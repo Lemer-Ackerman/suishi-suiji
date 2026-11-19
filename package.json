@@ -1,8 +1,8 @@
 {
-  "name": "daynote",
-  "productName": "日笺",
-  "version": "1.0.0",
-  "description": "A quiet, always-on-top daily notebook with a 4 AM day boundary.",
+  "name": "suishi-suiji",
+  "productName": "随时 · 随记",
+  "version": "1.0.1",
+  "description": "随时 · 随记：置顶的聊天式桌面记事本，随时记录，自动保存。",
   "author": "Lemer-Ackerman",
   "private": true,
   "license": "MIT",
@@ -22,8 +22,8 @@
   },
   "build": {
     "appId": "com.lemer.daynote",
-    "productName": "日笺",
-    "artifactName": "Daynote-${version}-${os}-${arch}.${ext}",
+    "productName": "随时 · 随记",
+    "artifactName": "Suishi-Suiji-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -68,11 +68,11 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "日笺",
-      "artifactName": "Daynote-${version}-win-${arch}-setup.${ext}"
+      "shortcutName": "随时 · 随记",
+      "artifactName": "Suishi-Suiji-${version}-win-${arch}-setup.${ext}"
     },
     "portable": {
-      "artifactName": "Daynote-${version}-win-${arch}-portable.${ext}"
+      "artifactName": "Suishi-Suiji-${version}-win-${arch}-portable.${ext}"
     }
   }
 }
