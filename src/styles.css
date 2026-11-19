@@ -511,3 +511,13 @@ dialog p {
   opacity: 0.4;
   cursor: default;
 }
+.calendar-days button.has-draft:not(.has-note):after {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  bottom: 3px;
+  left: calc(50% - 2.5px);
+}

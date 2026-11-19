@@ -159,3 +159,22 @@ test("Windows startup uses the same executable and hidden args to set and read, 
   startup.set(false);
   assert.equal(startup.enabled(), false);
 });
+const { DraftStore } = require("../src/core.cjs");
+test("drafts persist independently, migrate safely and never create empty daily text files", (t) => {
+  const root = temp(t),
+    source = new NoteStore(path.join(root, "a")),
+    target = new NoteStore(path.join(root, "b"));
+  const drafts = new DraftStore(source.root),
+    targetDrafts = new DraftStore(target.root);
+  const draft = { id: crypto.randomUUID(), text: "没有发送的文字\n第二行" };
+  drafts.save("2026-11-19", draft);
+  assert.equal(new DraftStore(source.root).read("2026-11-19").text, draft.text);
+  assert.deepEqual(source.list(), []);
+  copyNotes(source, target);
+  assert.equal(targetDrafts.read("2026-11-19").text, draft.text);
+  targetDrafts.save("2026-11-19", { ...draft, text: "不同的草稿" });
+  assert.throws(() => copyNotes(source, target), /草稿内容不同/);
+  drafts.save("2026-11-19", { ...draft, text: "" });
+  assert.deepEqual(drafts.list(), []);
+  assert.deepEqual(source.list(), []);
+});

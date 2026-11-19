@@ -49,7 +49,9 @@ test("chat recording, calendar, clipboard, confirm deletion, rollover, hide and 
     ),
   ).toBe(true);
   await page.locator("#editor").fill("只是草稿");
-  expect(fs.readdirSync(notes)).toEqual([]);
+  expect(fs.readdirSync(notes).filter((name) => name.endsWith(".txt"))).toEqual(
+    [],
+  );
   await send("一个值得记住的想法 🌱\n明天继续。");
   await send("第二条独立记录");
   expect(readEntries(file)).toEqual([
@@ -232,4 +234,55 @@ test("login launch remains hidden until explicitly summoned", async () => {
     .toBe(true);
   await menu("settings");
   await expect(page.locator("#start-on-login")).toBeDisabled();
+});
+
+test("force-kill recovery restores unsent draft without creating a daily text file", async () => {
+  await page.locator("#editor").fill("紧急退出也要留下的文字\n多行内容 🌱");
+  await expect(page.locator("#compose-help")).toContainText("草稿已保存");
+  expect(fs.existsSync(path.join(root, "notes", "2026-11-18.txt"))).toBe(false);
+  const process = app.process();
+  const exited = new Promise((resolve) => process.once("exit", resolve));
+  process.kill("SIGKILL");
+  await exited;
+  app = null;
+  await launch();
+  await expect(page.locator("#editor")).toHaveValue(
+    "紧急退出也要留下的文字\n多行内容 🌱",
+  );
+  await expect(page.locator(".bubble")).toHaveCount(0);
+  await page.locator("#send").click();
+  await expect(page.locator("#editor")).toHaveValue("");
+  expect(readEntries(path.join(root, "notes", "2026-11-18.txt"))).toEqual([
+    "紧急退出也要留下的文字\n多行内容 🌱",
+  ]);
+  expect(
+    fs.existsSync(path.join(root, "notes", ".drafts", "2026-11-18.json")),
+  ).toBe(false);
+});
+test("crash after message commit cannot restore a sent draft or duplicate retries", async () => {
+  await send("只保存一次");
+  const file = path.join(root, "notes", "2026-11-18.txt");
+  const entry = parseEntries(fs.readFileSync(file, "utf8"))[0];
+  const draftFile = path.join(root, "notes", ".drafts", "2026-11-18.json");
+  fs.mkdirSync(path.dirname(draftFile), { recursive: true });
+  fs.writeFileSync(
+    draftFile,
+    JSON.stringify({ ...entry, updatedAt: Date.now() }),
+  );
+  await app.close();
+  app = null;
+  await launch();
+  await expect(page.locator("#editor")).toHaveValue("");
+  await expect(page.locator(".bubble")).toHaveText(["只保存一次"]);
+  const result = await page.evaluate(
+    (entry) =>
+      window.daynote.call("send", {
+        date: "2026-11-18",
+        id: entry.id,
+        text: entry.text,
+      }),
+    entry,
+  );
+  expect(result.ok).toBe(true);
+  expect(readEntries(file)).toEqual(["只保存一次"]);
 });

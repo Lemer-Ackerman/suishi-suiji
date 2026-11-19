@@ -78,8 +78,75 @@ class NoteStore {
       .sort();
   }
 }
+const validId = (id) =>
+  typeof id === "string" &&
+  /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(id);
+class DraftStore {
+  constructor(notesRoot) {
+    this.root = path.join(notesRoot, ".drafts");
+  }
+  file(date) {
+    if (!validDate(date)) throw new Error("日期格式不正确。");
+    return path.join(this.root, `${date}.json`);
+  }
+  read(date) {
+    try {
+      const draft = JSON.parse(fs.readFileSync(this.file(date), "utf8"));
+      if (!validId(draft.id) || typeof draft.text !== "string")
+        throw new Error("草稿文件格式不正确。");
+      return draft;
+    } catch (e) {
+      if (e.code === "ENOENT") return null;
+      throw e;
+    }
+  }
+  save(date, draft) {
+    const file = this.file(date);
+    if (
+      !validId(draft.id) ||
+      typeof draft.text !== "string" ||
+      Buffer.byteLength(draft.text, "utf8") > MAX_BYTES
+    )
+      throw new Error("草稿格式不正确或超过 1 MB。");
+    if (!draft.text.trim()) return this.clear(date);
+    fs.mkdirSync(this.root, { recursive: true, mode: 0o700 });
+    atomicWrite(
+      file,
+      JSON.stringify({ id: draft.id, text: draft.text, updatedAt: Date.now() }),
+    );
+  }
+  clear(date) {
+    try {
+      fs.unlinkSync(this.file(date));
+    } catch (e) {
+      if (e.code !== "ENOENT") throw e;
+    }
+  }
+  list() {
+    try {
+      return fs
+        .readdirSync(this.root)
+        .filter(
+          (name) =>
+            /^\d{4}-\d{2}-\d{2}\.json$/.test(name) &&
+            validDate(name.slice(0, -5)),
+        )
+        .map((name) => name.slice(0, -5));
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw e;
+    }
+  }
+}
 function copyNotes(source, target) {
   const dates = source.list();
+  const sourceDrafts = new DraftStore(source.root),
+    targetDrafts = new DraftStore(target.root);
+  for (const date of sourceDrafts.list()) {
+    const existing = targetDrafts.read(date);
+    if (existing && existing.text !== sourceDrafts.read(date).text)
+      throw new Error(`目标文件夹中 ${date} 的草稿内容不同，未切换位置。`);
+  }
   for (const date of dates) {
     if (
       fs.existsSync(target.file(date)) &&
@@ -93,6 +160,10 @@ function copyNotes(source, target) {
   for (const date of dates) {
     if (!fs.existsSync(target.file(date))) target.save(date, source.read(date));
   }
+  for (const date of sourceDrafts.list()) {
+    if (!targetDrafts.read(date))
+      targetDrafts.save(date, sourceDrafts.read(date));
+  }
 }
 module.exports = {
   dateKey,
@@ -100,6 +171,8 @@ module.exports = {
   validDate,
   atomicWrite,
   NoteStore,
+  DraftStore,
+  validId,
   MAX_BYTES,
   copyNotes,
 };

@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 let state, month, pendingShortcut, deletion, toastTimer;
 let sending = false,
   navigating = false;
-const drafts = new Map();
+let composerId = null;
 function key(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -59,13 +59,14 @@ function renderCalendar() {
     button.dataset.date = dateKey;
     button.setAttribute(
       "aria-label",
-      `${dateKey}${state.dates.includes(dateKey) ? " 有记录" : ""}`,
+      `${dateKey}${state.dates.includes(dateKey) ? " 有记录" : ""}${state.draftDates.includes(dateKey) ? " 有未发送草稿" : ""}`,
     );
     button.setAttribute("aria-pressed", String(dateKey === state.date));
     if (date.getMonth() !== month.getMonth()) button.classList.add("outside");
     if (dateKey === state.date) button.classList.add("selected");
     if (dateKey === state.today) button.classList.add("today");
     if (state.dates.includes(dateKey)) button.classList.add("has-note");
+    if (state.draftDates.includes(dateKey)) button.classList.add("has-draft");
     button.onclick = () => select(dateKey);
     $("calendar-days").append(button);
   }
@@ -125,9 +126,11 @@ function renderMessages() {
 }
 function apply(next) {
   const changed = state && state.date !== next.date;
+  if (!state || changed) {
+    $("editor").value = next.draft?.text || "";
+    composerId = next.draft?.id || null;
+  }
   if (changed) {
-    drafts.set(state.date, $("editor").value);
-    $("editor").value = drafts.get(next.date) || "";
     $("delete-dialog").close();
   }
   state = next;
@@ -153,6 +156,9 @@ function apply(next) {
   renderMessages();
   renderCalendar();
   resizeComposer();
+  $("compose-help").textContent = $("editor").value.trim()
+    ? "草稿已保存 · Enter 发送 · Shift + Enter 换行"
+    : "Enter 发送 · Shift + Enter 换行";
   if (state.error) toast(state.error, true);
 }
 async function select(date) {
@@ -179,26 +185,50 @@ $("composer").onsubmit = async (event) => {
   event.preventDefault();
   if (sending || !state || !$("editor").value.trim()) return;
   const text = $("editor").value,
-    date = state.date;
+    date = state.date,
+    id = composerId || crypto.randomUUID();
+  composerId = id;
   sending = true;
+  $("editor").readOnly = true;
   resizeComposer();
   try {
-    const result = await call("send", { date, text });
-    drafts.delete(date);
-    if (state.date === date && $("editor").value === text)
+    const result = await call("send", { date, text, id });
+    if (state.date === date && $("editor").value === text) {
       $("editor").value = "";
+      composerId = null;
+    }
     apply(result.state);
     $("toast").hidden = true;
   } catch {
   } finally {
     sending = false;
+    $("editor").readOnly = false;
     resizeComposer();
     $("editor").focus();
   }
 };
 $("editor").addEventListener("input", () => {
   resizeComposer();
-  if (state) drafts.set(state.date, $("editor").value);
+  if (!state) return;
+  composerId ||= crypto.randomUUID();
+  const date = state.date,
+    text = $("editor").value,
+    id = composerId;
+  $("compose-help").textContent = "正在保存草稿…";
+  call("draft", { date, text, id })
+    .then(() => {
+      const dates = new Set(state.draftDates);
+      if (text.trim()) dates.add(date);
+      else dates.delete(date);
+      state.draftDates = [...dates];
+      if (state.date === date && $("editor").value === text)
+        $("compose-help").textContent = text.trim()
+          ? "草稿已保存 · Enter 发送 · Shift + Enter 换行"
+          : "Enter 发送 · Shift + Enter 换行";
+    })
+    .catch(() => {
+      $("compose-help").textContent = "草稿保存失败，请暂时不要退出";
+    });
 });
 $("editor").addEventListener("keydown", (event) => {
   if (
@@ -369,6 +399,7 @@ window.daynote.onStatus((status) => toast(status.message, status.error));
 call("load")
   .then((result) => {
     apply(result.state);
+    if (result.state.draft) toast("已恢复上次未发送的内容");
     $("editor").focus();
   })
   .catch(() => {});

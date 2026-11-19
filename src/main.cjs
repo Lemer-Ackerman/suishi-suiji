@@ -16,6 +16,8 @@ const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 const {
   NoteStore,
+  DraftStore,
+  validId,
   noteDay,
   validDate,
   atomicWrite,
@@ -36,6 +38,7 @@ const now = () =>
 let win,
   tray,
   store,
+  draftStore,
   settingsFile,
   activeDate,
   currentDay,
@@ -59,6 +62,8 @@ function snapshot() {
     date: activeDate,
     today: currentDay,
     entries: parseEntries(text),
+    draft: readDraft(activeDate),
+    draftDates: draftStore.list().filter((date) => readDraft(date)),
     dates: store.list(),
     pinned: win.isAlwaysOnTop(),
     shortcut: settings.shortcut,
@@ -68,6 +73,16 @@ function snapshot() {
     folder: store.root,
     error: lastError,
   };
+}
+function readDraft(date) {
+  const draft = draftStore.read(date);
+  // A message committed before a crash is authoritative over its leftover draft.
+  if (
+    draft &&
+    parseEntries(store.read(date)).some((entry) => entry.id === draft.id)
+  )
+    return null;
+  return draft;
 }
 function emitState() {
   if (win && !win.isDestroyed())
@@ -246,6 +261,15 @@ else {
       settings.notesDir = store.root;
       atomicWrite(settingsFile, JSON.stringify(settings, null, 2));
       currentDay = activeDate = noteDay(now());
+      draftStore = new DraftStore(store.root);
+      if (!readDraft(activeDate)) {
+        const recovery = draftStore
+          .list()
+          .map((date) => ({ date, draft: readDraft(date) }))
+          .filter((item) => item.draft)
+          .sort((a, b) => b.draft.updatedAt - a.draft.updatedAt)[0];
+        if (recovery) activeDate = recovery.date;
+      }
       createWindow();
       shortcutActive = registerShortcut(settings.shortcut);
       if (!shortcutActive)
@@ -286,9 +310,16 @@ else {
           switch (action) {
             case "load":
               return { ok: true, state: snapshot() };
+            case "draft":
+              draftStore.save(payload.date, {
+                id: payload.id,
+                text: payload.text,
+              });
+              return { ok: true };
             case "send": {
               if (
                 !validDate(payload.date) ||
+                !validId(payload.id) ||
                 typeof payload.text !== "string" ||
                 !payload.text.trim()
               )
@@ -296,8 +327,20 @@ else {
               if (Buffer.byteLength(payload.text, "utf8") > MAX_BYTES)
                 throw new Error("单日笔记请保持在 1 MB 以内。");
               const entries = parseEntries(store.read(payload.date));
-              entries.push(newEntry(payload.text, now()));
-              store.save(payload.date, serializeEntries(entries));
+              const existing = entries.find((entry) => entry.id === payload.id);
+              if (existing && existing.text !== payload.text)
+                throw new Error("记录已经发送，请重新打开该日期。");
+              if (!existing) {
+                const entry = newEntry(payload.text, now());
+                entry.id = payload.id;
+                entries.push(entry);
+                store.save(payload.date, serializeEntries(entries));
+              }
+              // Cleanup can be retried safely; never turn a committed message into a duplicate.
+              try {
+                if (draftStore.read(payload.date)?.id === payload.id)
+                  draftStore.clear(payload.date);
+              } catch {}
               lastError = "";
               break;
             }
@@ -357,6 +400,7 @@ else {
               atomicWrite(settingsFile, JSON.stringify(nextSettings, null, 2));
               settings = nextSettings;
               store = target;
+              draftStore = new DraftStore(store.root);
               break;
             }
             case "folder": {
