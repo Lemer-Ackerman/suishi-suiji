@@ -38,7 +38,12 @@ test.beforeEach(async () => {
 });
 test.afterEach(async () => {
   if (app) await app.close();
-  fs.rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
+  fs.rmSync(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 20,
+    retryDelay: 100,
+  });
 });
 test("chat recording, calendar, clipboard, confirm deletion, rollover, hide and restart", async () => {
   const notes = path.join(root, "notes"),
@@ -244,7 +249,8 @@ test("force-kill recovery restores unsent draft without creating a daily text fi
   const child = app.process();
   const exited = new Promise((resolve) => child.once("exit", resolve));
   // Windows Electron uses a launcher process. End its entire tree, as Task Manager does.
-  if (process.platform === "win32") execFileSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"]);
+  if (process.platform === "win32")
+    execFileSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"]);
   else child.kill("SIGKILL");
   await exited;
   app = null;

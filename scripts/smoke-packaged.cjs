@@ -31,15 +31,38 @@ const { parseEntries } = require("../src/entries.cjs");
       folder,
       "日笺.app/Contents/MacOS/日笺",
     );
+    execFileSync("/usr/bin/codesign", [
+      "--verify",
+      "--deep",
+      "--strict",
+      path.resolve("dist", folder, "日笺.app"),
+    ]);
   }
   const app = await electron.launch({ executablePath });
   try {
     const page = await app.firstWindow();
     try {
-      await page.waitForFunction(() => window.daynote && document.querySelector("#menu-date").textContent.includes("今天"));
+      await page.waitForFunction(
+        () =>
+          window.daynote &&
+          document.querySelector("#menu-date").textContent.includes("今天"),
+      );
     } catch (error) {
-      console.error("PACKAGED_UI", await page.evaluate(() => ({ url: location.href, bridge: typeof window.daynote, text: document.body.innerText })));
-      console.error("PACKAGED_MAIN", await app.evaluate(({app, BrowserWindow}) => ({ appPath: app.getAppPath(), page: BrowserWindow.getAllWindows()[0].webContents.getURL() })));
+      console.error(
+        "PACKAGED_UI",
+        await page.evaluate(() => ({
+          url: location.href,
+          bridge: typeof window.daynote,
+          text: document.body.innerText,
+        })),
+      );
+      console.error(
+        "PACKAGED_MAIN",
+        await app.evaluate(({ app, BrowserWindow }) => ({
+          appPath: app.getAppPath(),
+          page: BrowserWindow.getAllWindows()[0].webContents.getURL(),
+        })),
+      );
       throw error;
     }
     assert.equal(await app.evaluate(({ app }) => app.isPackaged), true);

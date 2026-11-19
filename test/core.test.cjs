@@ -178,3 +178,26 @@ test("drafts persist independently, migrate safely and never create empty daily 
   assert.deepEqual(drafts.list(), []);
   assert.deepEqual(source.list(), []);
 });
+const { isTrustedPage } = require("../src/security.cjs");
+const { pathToFileURL } = require("node:url");
+test("trusted local page accepts equivalent file paths but rejects other files and protocols", (t) => {
+  const root = temp(t),
+    file = path.join(root, "with spaces & unicode 记事.html");
+  fs.writeFileSync(file, "trusted");
+  const url = pathToFileURL(file).href;
+  assert.equal(isTrustedPage(url, file), true);
+  assert.equal(isTrustedPage("https://example.com/index.html", file), false);
+  assert.equal(
+    isTrustedPage("file://remote-server/path/index.html", file),
+    false,
+  );
+  assert.equal(isTrustedPage(url + "?untrusted", file), false);
+  const other = path.join(root, "other.html");
+  fs.writeFileSync(other, "other");
+  assert.equal(isTrustedPage(pathToFileURL(other).href, file), false);
+  if (process.platform !== "win32") {
+    const alias = path.join(root, "alias.html");
+    fs.symlinkSync(file, alias);
+    assert.equal(isTrustedPage(pathToFileURL(alias).href, file), true);
+  }
+});

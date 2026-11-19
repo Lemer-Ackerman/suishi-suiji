@@ -13,7 +13,7 @@ const {
 } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
-const { pathToFileURL } = require("node:url");
+const { isTrustedPage } = require("./security.cjs");
 const {
   NoteStore,
   DraftStore,
@@ -49,7 +49,7 @@ let quitting = false;
 let shortcutActive = false;
 let settings = { shortcut: "Shift+Space" };
 let lastError = "";
-const pageUrl = pathToFileURL(path.join(__dirname, "index.html")).href;
+const pageFile = path.join(__dirname, "index.html");
 
 function status(message, error = false) {
   lastError = error ? message : "";
@@ -303,7 +303,7 @@ else {
         if (
           event.sender !== win.webContents ||
           event.senderFrame !== win.webContents.mainFrame ||
-          event.senderFrame.url !== pageUrl
+          !isTrustedPage(event.senderFrame.url, pageFile)
         )
           return { ok: false, error: "不允许的请求。" };
         try {

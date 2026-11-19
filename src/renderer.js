@@ -17,6 +17,7 @@ function shortcutLabel(value) {
     )
     .replaceAll("Command", "⌘")
     .replaceAll("Control", "Ctrl")
+    .replaceAll("Super", navigator.platform.includes("Mac") ? "⌘" : "Win")
     .replaceAll("+", " + ");
 }
 function toast(message, error = false) {
@@ -320,7 +321,8 @@ $("shortcut-input").addEventListener("keydown", (event) => {
   if (event.ctrlKey) parts.push("Control");
   if (event.altKey) parts.push("Alt");
   if (event.shiftKey) parts.push("Shift");
-  if (event.metaKey) parts.push("Command");
+  if (event.metaKey)
+    parts.push(navigator.platform.includes("Mac") ? "Command" : "Super");
   if (!parts.length || ["Control", "Alt", "Shift", "Meta"].includes(event.key))
     return;
   const aliases = {
