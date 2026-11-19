@@ -145,6 +145,11 @@ function apply(next) {
     ? shortcutLabel(state.shortcut)
     : "快捷键待设置";
   $("folder-path").textContent = state.folder;
+  $("start-on-login").checked = state.startOnLogin;
+  $("start-on-login").disabled = !state.startupSupported;
+  $("startup-help").textContent = state.startupSupported
+    ? "登录电脑后在后台待命，按快捷键随时唤出。"
+    : "安装正式版本后可设置开机启动。";
   renderMessages();
   renderCalendar();
   resizeComposer();
@@ -321,6 +326,22 @@ $("save-shortcut").onclick = async () => {
   }
 };
 $("open-folder").onclick = () => run("folder");
+$("start-on-login").onchange = async () => {
+  const enabled = $("start-on-login").checked;
+  $("start-on-login").disabled = true;
+  try {
+    const result = await call("startup", { enabled });
+    apply(result.state);
+    $("settings-status").textContent = enabled
+      ? "已开启，下次登录电脑时生效"
+      : "已关闭开机自动启动";
+  } catch (e) {
+    $("start-on-login").checked = state.startOnLogin;
+    $("settings-status").textContent = e.message;
+  } finally {
+    $("start-on-login").disabled = !state.startupSupported;
+  }
+};
 $("change-folder").onclick = async () => {
   $("change-folder").disabled = true;
   try {

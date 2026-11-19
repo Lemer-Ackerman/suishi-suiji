@@ -103,3 +103,59 @@ test("message format preserves multiline text, trailing newlines, backslashes an
   assert.deepEqual(parseEntries(serializeEntries(legacy)), legacy);
   assert.equal(serializeEntries([]), "");
 });
+const { createStartup, launchAgent } = require("../src/startup.cjs");
+test("macOS startup registration is reversible and safely escapes executable paths", (t) => {
+  const home = temp(t),
+    executable = "/Applications/A & B <test>.app/Contents/MacOS/Daynote";
+  const startup = createStartup(
+    { isPackaged: true },
+    { platform: "darwin", home, executable },
+  );
+  assert.equal(startup.enabled(), false);
+  startup.set(true);
+  assert.equal(startup.enabled(), true);
+  const file = path.join(home, "Library/LaunchAgents/com.lemer.daynote.plist");
+  const plist = fs.readFileSync(file, "utf8");
+  assert.ok(plist.includes("A &amp; B &lt;test&gt;"));
+  assert.ok(plist.includes("--hidden"));
+  assert.ok(plist.includes("<key>RunAtLoad</key><true/>"));
+  if (process.platform === "darwin")
+    execFileSync("/usr/bin/plutil", ["-lint", file]);
+  startup.set(false);
+  assert.equal(startup.enabled(), false);
+  assert.equal(fs.existsSync(file), false);
+  startup.set(false);
+});
+test("Windows startup uses the same executable and hidden args to set and read, observes disabled state", (t) => {
+  let enabled = false,
+    disabled = false;
+  const executable = "D:\\Apps\\Daynote.exe";
+  const app = {
+    isPackaged: true,
+    setLoginItemSettings(value) {
+      assert.equal(value.path, executable);
+      assert.deepEqual(value.args, ["--hidden"]);
+      enabled = value.openAtLogin;
+    },
+    getLoginItemSettings(value) {
+      assert.equal(value.path, executable);
+      assert.deepEqual(value.args, ["--hidden"]);
+      return {
+        openAtLogin: enabled,
+        executableWillLaunchAtLogin: enabled && !disabled,
+      };
+    },
+  };
+  const startup = createStartup(app, {
+    platform: "win32",
+    home: temp(t),
+    executable,
+  });
+  startup.set(true);
+  assert.equal(startup.enabled(), true);
+  disabled = true;
+  assert.equal(startup.enabled(), false);
+  disabled = false;
+  startup.set(false);
+  assert.equal(startup.enabled(), false);
+});

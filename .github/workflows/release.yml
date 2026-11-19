@@ -1,0 +1,52 @@
+name: Publish verified release
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Build desktop apps run ID
+        required: true
+        type: string
+permissions:
+  contents: write
+  actions: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify successful build
+        id: build
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ inputs.run_id }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || exit 1
+          gh api "repos/$REPO/actions/runs/$RUN_ID" > run.json
+          node - <<'JS'
+          const fs = require('fs');
+          const run = JSON.parse(fs.readFileSync('run.json'));
+          if (run.conclusion !== 'success' || run.head_branch !== 'main' || run.path !== '.github/workflows/build.yml') throw new Error('Only successful main branch desktop builds may be released');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `sha=${run.head_sha}\n`);
+          JS
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.build.outputs.sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ github.token }}
+          pattern: Daynote-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish tested packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE_SHA: ${{ steps.build.outputs.sha }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          test "$(find release-assets -maxdepth 1 -name '*.exe' | wc -l)" -eq 2
+          test "$(find release-assets -maxdepth 1 -name '*.dmg' | wc -l)" -eq 2
+          test "$(find release-assets -maxdepth 1 -name '*.zip' | wc -l)" -eq 2
+          (cd release-assets && sha256sum *.exe *.dmg *.zip > SHA256SUMS.txt)
+          gh release create "v$VERSION" release-assets/* --repo "$REPO" --target "$RELEASE_SHA" --title "日笺 v$VERSION" --notes-file docs/release-notes.md

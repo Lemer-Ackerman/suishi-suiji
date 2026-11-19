@@ -204,3 +204,32 @@ test("Enter sends, Shift+Enter preserves multiline, whitespace creates no file",
   await expect(page.locator(".bubble")).toHaveText(["第一行\n第二行"]);
   await expect(page.locator("#editor")).toHaveValue("");
 });
+
+test("login launch remains hidden until explicitly summoned", async () => {
+  await app.close();
+  app = await electron.launch({
+    args: [path.join(__dirname, ".."), "--hidden"],
+    env: {
+      ...process.env,
+      DAYNOTE_TEST_DATA: root,
+      DAYNOTE_TEST_NOW: "2026-11-19T03:59:30",
+    },
+  });
+  page = await app.firstWindow();
+  await expect(page.locator("#menu-date")).toHaveText("2026-11-18 · 今天");
+  expect(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].isVisible(),
+    ),
+  ).toBe(false);
+  await app.evaluate(({ app }) => app.emit("activate"));
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].isVisible(),
+      ),
+    )
+    .toBe(true);
+  await menu("settings");
+  await expect(page.locator("#start-on-login")).toBeDisabled();
+});

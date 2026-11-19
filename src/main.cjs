@@ -23,6 +23,7 @@ const {
   copyNotes,
 } = require("./core.cjs");
 const { parseEntries, serializeEntries, newEntry } = require("./entries.cjs");
+const { createStartup } = require("./startup.cjs");
 app.setName("Daynote");
 if (!app.isPackaged && process.env.DAYNOTE_TEST_DATA)
   app.setPath("userData", process.env.DAYNOTE_TEST_DATA);
@@ -32,7 +33,15 @@ const now = () =>
       ? process.env.DAYNOTE_TEST_NOW
       : Date.now(),
   );
-let win, tray, store, settingsFile, activeDate, currentDay, rolloverTimer;
+let win,
+  tray,
+  store,
+  settingsFile,
+  activeDate,
+  currentDay,
+  rolloverTimer,
+  startup;
+const startHidden = process.argv.includes("--hidden");
 let quitting = false;
 let shortcutActive = false;
 let settings = { shortcut: "Shift+Space" };
@@ -54,6 +63,8 @@ function snapshot() {
     pinned: win.isAlwaysOnTop(),
     shortcut: settings.shortcut,
     shortcutActive,
+    startOnLogin: startup.enabled(),
+    startupSupported: startup.supported,
     folder: store.root,
     error: lastError,
   };
@@ -177,17 +188,20 @@ function createWindow() {
       hide();
     }
   });
-  win.once("ready-to-show", show);
+  win.once("ready-to-show", () => {
+    if (!startHidden) show();
+  });
   win.loadFile(path.join(__dirname, "index.html"));
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on("second-instance", () => {
-    if (win) show();
+  app.on("second-instance", (_event, argv) => {
+    if (win && !argv.includes("--hidden")) show();
   });
   app
     .whenReady()
     .then(async () => {
+      startup = createStartup(app);
       settingsFile = path.join(app.getPath("userData"), "settings.json");
       try {
         const loaded = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
@@ -325,6 +339,9 @@ else {
               break;
             case "shortcut":
               setShortcut(payload.shortcut);
+              break;
+            case "startup":
+              startup.set(payload.enabled);
               break;
             case "change-folder": {
               const picked = await dialog.showOpenDialog(win, {

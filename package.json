@@ -11,7 +11,7 @@
     "start": "electron .",
     "test": "node --test test/core.test.cjs",
     "test:e2e": "playwright test",
-    "check": "node --check src/main.cjs && node --check src/renderer.js && node --check src/core.cjs && node --check src/preload.cjs && node --check src/entries.cjs",
+    "check": "node --check src/main.cjs && node --check src/renderer.js && node --check src/core.cjs && node --check src/preload.cjs && node --check src/entries.cjs && node --check src/startup.cjs",
     "pack:mac": "electron-builder --mac --publish never",
     "pack:win": "electron-builder --win --x64 --publish never"
   },
@@ -19,14 +19,6 @@
     "electron": "45.4.1",
     "electron-builder": "26.18.0",
     "@playwright/test": "1.65.1"
-  },
-  "overrides": {
-    "app-builder-lib": {
-      "minimatch": "11.0.9"
-    },
-    "@electron/universal": {
-      "minimatch": "11.0.9"
-    }
   },
   "build": {
     "appId": "com.lemer.daynote",
