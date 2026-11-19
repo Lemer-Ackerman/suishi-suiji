@@ -43,7 +43,6 @@ function createStartup(app, options = {}) {
         ...windows,
         openAtLogin: value,
         enabled: value,
-        name: LABEL,
       });
     else if (value) {
       fs.mkdirSync(path.dirname(agent), { recursive: true, mode: 0o700 });

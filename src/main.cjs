@@ -27,6 +27,7 @@ const {
 const { parseEntries, serializeEntries, newEntry } = require("./entries.cjs");
 const { createStartup } = require("./startup.cjs");
 app.setName("Daynote");
+if (process.platform === "win32") app.setAppUserModelId("com.lemer.daynote");
 if (!app.isPackaged && process.env.DAYNOTE_TEST_DATA)
   app.setPath("userData", process.env.DAYNOTE_TEST_DATA);
 const now = () =>
