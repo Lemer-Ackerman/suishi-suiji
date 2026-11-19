@@ -2,6 +2,7 @@ const { test, expect, _electron: electron } = require("@playwright/test");
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
+const { execFileSync } = require("node:child_process");
 const { parseEntries } = require("../src/entries.cjs");
 let app, page, root;
 async function launch() {
@@ -37,7 +38,7 @@ test.beforeEach(async () => {
 });
 test.afterEach(async () => {
   if (app) await app.close();
-  fs.rmSync(root, { recursive: true, force: true });
+  fs.rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 100 });
 });
 test("chat recording, calendar, clipboard, confirm deletion, rollover, hide and restart", async () => {
   const notes = path.join(root, "notes"),
@@ -240,9 +241,11 @@ test("force-kill recovery restores unsent draft without creating a daily text fi
   await page.locator("#editor").fill("紧急退出也要留下的文字\n多行内容 🌱");
   await expect(page.locator("#compose-help")).toContainText("草稿已保存");
   expect(fs.existsSync(path.join(root, "notes", "2026-11-18.txt"))).toBe(false);
-  const process = app.process();
-  const exited = new Promise((resolve) => process.once("exit", resolve));
-  process.kill("SIGKILL");
+  const child = app.process();
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  // Windows Electron uses a launcher process. End its entire tree, as Task Manager does.
+  if (process.platform === "win32") execFileSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"]);
+  else child.kill("SIGKILL");
   await exited;
   app = null;
   await launch();
