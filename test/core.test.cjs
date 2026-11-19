@@ -1,0 +1,105 @@
+const { test } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const { execFileSync } = require("node:child_process");
+const { NoteStore, noteDay, validDate, copyNotes } = require("../src/core.cjs");
+function temp(t) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "daynote-core-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+test("4 AM boundary, month/year/leap-day boundaries", () => {
+  assert.equal(noteDay(new Date(2026, 10, 19, 3, 59, 59)), "2026-11-18");
+  assert.equal(noteDay(new Date(2026, 10, 19, 4, 0, 0)), "2026-11-19");
+  assert.equal(noteDay(new Date(2026, 0, 1, 1)), "2025-12-31");
+  assert.equal(noteDay(new Date(2024, 2, 1, 2)), "2024-02-29");
+});
+test("DST transitions use local calendar dates", () => {
+  const script = `const { noteDay } = require('./src/core.cjs'); console.log(noteDay(new Date(2026,2,8,4)), noteDay(new Date(2026,10,1,3)), noteDay(new Date(2026,10,1,4)));`;
+  const result = execFileSync(process.execPath, ["-e", script], {
+    cwd: path.join(__dirname, ".."),
+    env: { ...process.env, TZ: "America/New_York" },
+  })
+    .toString()
+    .trim();
+  assert.equal(result, "2026-03-08 2026-10-31 2026-11-01");
+});
+test("no files for absent/whitespace notes; exact UTF-8 contents survive restart", (t) => {
+  const root = temp(t);
+  const store = new NoteStore(root);
+  assert.equal(store.read("2026-11-19"), "");
+  store.save("2026-11-19", " \n\t");
+  assert.deepEqual(fs.readdirSync(root), []);
+  store.save("2026-11-19", "你好，世界 🌱\n第二行\n");
+  assert.equal(
+    new NoteStore(root).read("2026-11-19"),
+    "你好，世界 🌱\n第二行\n",
+  );
+  assert.deepEqual(store.list(), ["2026-11-19"]);
+  store.save("2026-11-19", "");
+  assert.deepEqual(store.list(), []);
+});
+test("invalid dates/path traversal and oversized notes cannot overwrite valid data", (t) => {
+  const store = new NoteStore(temp(t));
+  for (const date of ["../../secret", "2026-02-30", "2026-1-01", null]) {
+    assert.equal(validDate(date), false);
+    assert.throws(() => store.save(date, "bad"));
+  }
+  store.save("2026-11-19", "original");
+  assert.throws(() => store.save("2026-11-19", "中".repeat(400000)));
+  assert.equal(store.read("2026-11-19"), "original");
+});
+test("failed atomic replacement preserves the previous file", (t) => {
+  const root = temp(t),
+    store = new NoteStore(root);
+  store.save("2026-11-19", "safe");
+  const rename = fs.renameSync;
+  fs.renameSync = () => {
+    throw new Error("Simulated disk failure");
+  };
+  try {
+    assert.throws(() => store.save("2026-11-19", "replacement"));
+  } finally {
+    fs.renameSync = rename;
+  }
+  assert.equal(store.read("2026-11-19"), "safe");
+  assert.deepEqual(fs.readdirSync(root), ["2026-11-19.txt"]);
+});
+test("folder migration copies notes and refuses conflicting contents", (t) => {
+  const root = temp(t),
+    source = new NoteStore(path.join(root, "a")),
+    target = new NoteStore(path.join(root, "b"));
+  source.save("2026-11-18", "one");
+  source.save("2026-11-19", "two");
+  target.save("2026-11-19", "different");
+  assert.throws(() => copyNotes(source, target), /内容不同/);
+  assert.equal(target.read("2026-11-18"), "");
+  assert.equal(source.read("2026-11-19"), "two");
+  target.save("2026-11-19", "");
+  copyNotes(source, target);
+  assert.deepEqual(target.list(), source.list());
+  assert.equal(target.read("2026-11-19"), "two");
+  copyNotes(source, target);
+  assert.equal(source.read("2026-11-18"), "one");
+});
+const {
+  newEntry,
+  parseEntries,
+  serializeEntries,
+} = require("../src/entries.cjs");
+test("message format preserves multiline text, trailing newlines, backslashes and header-looking content", () => {
+  const fake = "## 2026-11-19 01:02:03 [12345678-1234-1234-1234-123456789012]";
+  const entries = [
+    newEntry("你好 🌱\n\n换行\n"),
+    newEntry(`${fake}\n\\${fake}\n\\path\n\n`),
+    newEntry("last"),
+  ];
+  assert.deepEqual(parseEntries(serializeEntries(entries)), entries);
+  assert.deepEqual(parseEntries(" \n"), []);
+  const legacy = parseEntries("旧笔记\n\n没有时间戳");
+  assert.equal(legacy[0].text, "旧笔记\n\n没有时间戳");
+  assert.deepEqual(parseEntries(serializeEntries(legacy)), legacy);
+  assert.equal(serializeEntries([]), "");
+});

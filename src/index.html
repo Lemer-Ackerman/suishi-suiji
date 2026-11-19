@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <title>日笺 · Daynote</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="titlebar">
+      <span id="page-title">日笺</span
+      ><button
+        id="more"
+        class="icon-button"
+        aria-label="更多选项"
+        aria-expanded="false"
+      >
+        <svg viewBox="0 0 24 24">
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+      </button>
+    </header>
+    <div id="menu" class="menu" hidden>
+      <p id="menu-date"></p>
+      <button id="calendar-toggle">
+        <span>日历 · 查看往日</span><span>▦</span></button
+      ><button id="settings"><span>设置</span><span>⚙</span></button
+      ><button id="pin" aria-pressed="true">
+        <span id="pin-label">取消窗口置顶</span><span>↗</span>
+      </button>
+      <div class="menu-line"></div>
+      <button id="copy-all">复制当天全部记录</button
+      ><button id="delete-all" class="danger">删除当天全部记录</button>
+      <div class="menu-line"></div>
+      <button id="hide">
+        <span>隐藏窗口</span><small id="shortcut-hint">Shift + Space</small>
+      </button>
+    </div>
+    <main id="messages" aria-label="已发送的记录" aria-live="polite"></main>
+    <div id="empty-state" hidden><span>把此刻，留在这里。</span></div>
+    <form id="composer">
+      <label for="editor" class="sr-only">输入记事内容</label
+      ><textarea
+        id="editor"
+        rows="1"
+        placeholder="记一点什么…"
+        spellcheck="false"
+        aria-describedby="compose-help"
+      ></textarea
+      ><button
+        id="send"
+        type="submit"
+        aria-label="发送记录"
+        title="发送（Enter）"
+        disabled
+      >
+        <svg viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6" /></svg>
+      </button>
+    </form>
+    <p id="compose-help">Enter 发送 <span>·</span> Shift + Enter 换行</p>
+    <dialog id="calendar-dialog">
+      <div class="dialog-heading">
+        <h2>翻看往日</h2>
+        <button id="close-calendar" class="icon-button" aria-label="关闭日历">
+          ×
+        </button>
+      </div>
+      <div class="calendar-top">
+        <button id="prev-month" class="icon-button" aria-label="上个月">
+          ‹</button
+        ><strong id="month-label"></strong
+        ><button id="next-month" class="icon-button" aria-label="下个月">
+          ›
+        </button>
+      </div>
+      <div class="weekdays">
+        <span>一</span><span>二</span><span>三</span><span>四</span
+        ><span>五</span><span>六</span><span>日</span>
+      </div>
+      <div id="calendar-days" class="calendar-days"></div>
+      <div class="calendar-bottom">
+        <small>圆点表示当天有记录</small
+        ><button id="today" class="text-button">回到今天</button>
+      </div>
+      <p class="muted">每个记事日从凌晨 4:00 开始。</p>
+    </dialog>
+    <dialog id="delete-dialog">
+      <div class="dialog-heading">
+        <h2 id="delete-title">删除这条记录？</h2>
+      </div>
+      <p id="delete-description"></p>
+      <p class="muted">删除后无法撤销。</p>
+      <div class="dialog-actions">
+        <button id="cancel-delete" class="secondary">保留记录</button
+        ><button id="confirm-delete" class="destructive">确认删除</button>
+      </div>
+    </dialog>
+    <dialog id="settings-dialog">
+      <div class="dialog-heading">
+        <h2>设置</h2>
+        <button id="close-settings" class="icon-button" aria-label="关闭设置">
+          ×
+        </button>
+      </div>
+      <label for="shortcut-input" class="field-label">显示 / 隐藏快捷键</label
+      ><input id="shortcut-input" readonly placeholder="点击这里，按下组合键" />
+      <p class="muted">点击输入框后直接按键，例如 Shift + 空格。</p>
+      <div class="shortcut-actions">
+        <button id="reset-shortcut" class="text-button">
+          恢复 Shift + 空格</button
+        ><button id="save-shortcut" class="primary">保存快捷键</button>
+      </div>
+      <p id="settings-status" role="status"></p>
+      <div class="settings-divider"></div>
+      <p class="field-label">笔记保存位置</p>
+      <p id="folder-path"></p>
+      <div class="folder-actions">
+        <button id="open-folder" class="secondary">打开文件夹</button
+        ><button id="change-folder" class="secondary">更换文件夹</button>
+      </div>
+      <p class="muted">
+        发送后保存为
+        .txt。更换位置会复制历史记录，原文件保留；同名冲突不会覆盖。
+      </p>
+      <div class="settings-divider"></div>
+      <p class="muted">
+        窗口默认置顶。隐藏后日笺继续在托盘运行。未发送的内容不会写入文件，退出前请先发送。
+      </p>
+      <button id="quit" class="text-button danger">退出日笺</button>
+    </dialog>
+    <div id="toast" role="status" hidden></div>
+    <script src="renderer.js"></script>
+  </body>
+</html>

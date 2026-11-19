@@ -1,0 +1,86 @@
+{
+  "name": "daynote",
+  "productName": "日笺",
+  "version": "1.0.0",
+  "description": "A quiet, always-on-top daily notebook with a 4 AM day boundary.",
+  "author": "Lemer-Ackerman",
+  "private": true,
+  "license": "MIT",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/core.test.cjs",
+    "test:e2e": "playwright test",
+    "check": "node --check src/main.cjs && node --check src/renderer.js && node --check src/core.cjs && node --check src/preload.cjs && node --check src/entries.cjs",
+    "pack:mac": "electron-builder --mac --publish never",
+    "pack:win": "electron-builder --win --x64 --publish never"
+  },
+  "devDependencies": {
+    "electron": "45.4.1",
+    "electron-builder": "26.18.0",
+    "@playwright/test": "1.65.1"
+  },
+  "overrides": {
+    "app-builder-lib": {
+      "minimatch": "11.0.9"
+    },
+    "@electron/universal": {
+      "minimatch": "11.0.9"
+    }
+  },
+  "build": {
+    "appId": "com.lemer.daynote",
+    "productName": "日笺",
+    "artifactName": "Daynote-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/icon.png",
+      "build/tray.png",
+      "package.json"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.icns",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "日笺",
+      "artifactName": "Daynote-${version}-win-${arch}-setup.${ext}"
+    },
+    "portable": {
+      "artifactName": "Daynote-${version}-win-${arch}-portable.${ext}"
+    }
+  }
+}
