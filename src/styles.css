@@ -173,7 +173,7 @@ svg {
   display: flex;
   gap: 4px;
   margin: 5px 2px -8px;
-  opacity: 0;
+  opacity: 0.7;
   transition: opacity 0.15s;
 }
 .message:hover .message-tools,
@@ -181,10 +181,15 @@ svg {
   opacity: 1;
 }
 .message-tools button {
-  font-size: 10px;
+  width: 30px;
+  height: 30px;
   color: #8a9780;
-  padding: 4px 7px;
+  padding: 6px;
   border-radius: 5px;
+}
+.message-tools svg {
+  width: 18px;
+  height: 18px;
 }
 .message-tools button:hover {
   background: #e7eddf;
@@ -429,6 +434,23 @@ dialog p {
 #delete-description {
   max-height: 130px;
   overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#edit-text {
+  width: 100%;
+  min-height: 130px;
+  max-height: 45vh;
+  resize: vertical;
+  padding: 12px;
+  border: 1px solid #dce3d4;
+  border-radius: 10px;
+  background: #fffffc;
+  color: var(--ink);
+  line-height: 1.8;
+}
+#edit-status {
+  color: var(--red);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

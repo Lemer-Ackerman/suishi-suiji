@@ -295,3 +295,116 @@ test("crash after message commit cannot restore a sent draft or duplicate retrie
   expect(result.ok).toBe(true);
   expect(readEntries(file)).toEqual(["只保存一次"]);
 });
+
+test("icon actions edit in place, cancel safely, preserve time and composer, survive restart", async () => {
+  await send("需要修改的原文");
+  await send("另一条记录保持不变");
+  const file = path.join(root, "notes", "2026-11-18.txt");
+  const before = parseEntries(fs.readFileSync(file, "utf8"));
+  await page.locator("#editor").fill("还没发送的草稿");
+  await expect(page.locator("#compose-help")).toContainText("草稿已保存");
+  const first = page.locator(".message").first();
+  for (const label of ["复制这条记录", "编辑这条记录", "删除这条记录"]) {
+    const button = first.getByRole("button", { name: label, exact: true });
+    await expect(button).toHaveText("");
+    await expect(button.locator("svg")).toHaveCount(1);
+    await expect(button).toHaveAttribute("title", label);
+  }
+  await first.getByRole("button", { name: "编辑这条记录" }).click();
+  await page.locator("#edit-text").fill("取消这次修改");
+  await page.locator("#cancel-edit").click();
+  expect(parseEntries(fs.readFileSync(file, "utf8"))).toEqual(before);
+  expect(fs.existsSync(path.join(root, "edit-draft.json"))).toBe(false);
+  await first.getByRole("button", { name: "编辑这条记录" }).click();
+  await page.locator("#edit-text").fill(" \n ");
+  await expect(page.locator("#save-edit")).toBeDisabled();
+  const text = "修改后的文字 🌱\n第二行 <script>只是文本</script>";
+  await page.locator("#edit-text").fill(text);
+  await page.locator("#save-edit").click();
+  await expect(page.locator("#edit-dialog")).not.toBeVisible();
+  await expect(page.locator(".bubble")).toHaveText([text, before[1].text]);
+  expect(parseEntries(fs.readFileSync(file, "utf8"))).toEqual([
+    { ...before[0], text },
+    before[1],
+  ]);
+  await expect(page.locator("#editor")).toHaveValue("还没发送的草稿");
+  await first.getByRole("button", { name: "复制这条记录" }).click();
+  expect(await app.evaluate(({ clipboard }) => clipboard.readText())).toBe(
+    text,
+  );
+  await app.close();
+  app = null;
+  await launch();
+  await expect(page.locator(".bubble")).toHaveText([text, before[1].text]);
+  await expect(page.locator("#editor")).toHaveValue("还没发送的草稿");
+  await expect(page.locator("#edit-dialog")).not.toBeVisible();
+});
+
+test("editing survives force kill, storage failures preserve both versions, retry succeeds", async () => {
+  await send("原记录不能丢失");
+  await page.getByRole("button", { name: "编辑这条记录" }).click();
+  await page.locator("#edit-text").fill("意外退出之前的修改\n继续编辑");
+  await expect(page.locator("#edit-status")).toHaveText("编辑草稿已保存");
+  const child = app.process();
+  const exited = new Promise((resolve) => child.once("exit", resolve));
+  if (process.platform === "win32")
+    execFileSync("taskkill.exe", ["/pid", String(child.pid), "/t", "/f"]);
+  else child.kill("SIGKILL");
+  await exited;
+  app = null;
+  await launch();
+  await expect(page.locator("#edit-dialog")).toBeVisible();
+  await expect(page.locator("#edit-text")).toHaveValue(
+    "意外退出之前的修改\n继续编辑",
+  );
+  const notes = path.join(root, "notes"),
+    file = path.join(notes, "2026-11-18.txt");
+  expect(readEntries(file)).toEqual(["原记录不能丢失"]);
+  fs.renameSync(notes, notes + "-backup");
+  fs.writeFileSync(notes, "not a directory");
+  await page.locator("#save-edit").click();
+  await expect(page.locator("#edit-status")).not.toHaveText("正在保存…");
+  await expect(page.locator("#edit-dialog")).toBeVisible();
+  await expect(page.locator("#edit-text")).toHaveValue(
+    "意外退出之前的修改\n继续编辑",
+  );
+  expect(readEntries(path.join(notes + "-backup", "2026-11-18.txt"))).toEqual([
+    "原记录不能丢失",
+  ]);
+  fs.unlinkSync(notes);
+  fs.renameSync(notes + "-backup", notes);
+  await page.locator("#save-edit").click();
+  await expect(page.locator("#edit-dialog")).not.toBeVisible();
+  expect(readEntries(file)).toEqual(["意外退出之前的修改\n继续编辑"]);
+  expect(fs.existsSync(path.join(root, "edit-draft.json"))).toBe(false);
+});
+
+test("edit remains tied to its original date across rollover and refuses stale overwrites", async () => {
+  await send("昨天的记录");
+  const file = path.join(root, "notes", "2026-11-18.txt");
+  const entry = parseEntries(fs.readFileSync(file, "utf8"))[0];
+  await page.getByRole("button", { name: "编辑这条记录" }).click();
+  await page.locator("#edit-text").fill("凌晨后改昨天的记录");
+  await app.evaluate(() => {
+    process.env.DAYNOTE_TEST_NOW = "2026-11-19T04:00:01";
+  });
+  await expect(page.locator("#menu-date")).toHaveText("2026-11-19 · 今天");
+  await expect(page.locator("#edit-dialog")).toBeVisible();
+  await page.locator("#save-edit").click();
+  await expect(page.locator("#edit-dialog")).not.toBeVisible();
+  expect(readEntries(file)).toEqual(["凌晨后改昨天的记录"]);
+  expect(fs.existsSync(path.join(root, "notes", "2026-11-19.txt"))).toBe(false);
+  const result = await page.evaluate(
+    (entry) =>
+      window.daynote.call("edit", {
+        date: "2026-11-18",
+        id: entry.id,
+        originalText: entry.text,
+        text: "过期编辑覆盖",
+      }),
+    entry,
+  );
+  expect(result.ok).toBe(false);
+  expect(result.error).toContain("已在别处修改");
+  expect(readEntries(file)).toEqual(["凌晨后改昨天的记录"]);
+});

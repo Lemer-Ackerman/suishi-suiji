@@ -3,6 +3,78 @@ let state, month, pendingShortcut, deletion, toastTimer;
 let sending = false,
   navigating = false;
 let composerId = null;
+let editing = null,
+  savingEdit = false;
+async function rememberEdit() {
+  const text = $("edit-text").value;
+  try {
+    await call("edit-draft", { ...editing, text });
+    if (editing && $("edit-text").value === text && !savingEdit)
+      $("edit-status").textContent = "编辑草稿已保存";
+  } catch {
+    $("edit-status").textContent =
+      "编辑草稿暂时无法保存，请点击“保存修改”后再退出。";
+  }
+}
+const toolPaths = {
+  copy: "M9 9h11v11H9z M5 15H4V4h11v1",
+  edit: "m15 5 4 4 M4 20l4-1L20 7a2.8 2.8 0 0 0-4-4L4 15z",
+  delete: "M3 6h18 M9 6V3h6v3 M5 6l1 15h12l1-15 M10 10v7 M14 10v7",
+};
+function toolButton(icon, label, onClick) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "icon-button";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  path.setAttribute("d", toolPaths[icon]);
+  svg.append(path);
+  button.append(svg);
+  button.onclick = onClick;
+  return button;
+}
+function startEdit(entry) {
+  editing = {
+    date: state.date,
+    id: entry.id,
+    originalText: entry.text,
+    folder: state.folder,
+    time: entry.time,
+  };
+  $("edit-text").value = entry.text;
+  $("edit-time").textContent = entry.time || `${state.date} · 未标注时间`;
+  $("edit-status").textContent = "";
+  $("save-edit").disabled = false;
+  $("edit-dialog").showModal();
+  $("edit-text").focus();
+  $("edit-text").setSelectionRange(entry.text.length, entry.text.length);
+}
+function restoreEdit(draft) {
+  try {
+    if (
+      !draft ||
+      draft.folder !== state.folder ||
+      typeof draft.text !== "string" ||
+      typeof draft.originalText !== "string" ||
+      typeof draft.id !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(draft.date)
+    )
+      return;
+    editing = draft;
+    $("edit-text").value = draft.text;
+    $("edit-time").textContent = draft.time || `${draft.date} · 未标注时间`;
+    $("edit-status").textContent = "已恢复上次未保存的修改";
+    $("save-edit").disabled = !draft.text.trim();
+    $("edit-dialog").showModal();
+    $("edit-text").focus();
+  } catch {
+    toast("编辑草稿无法读取，原记录仍保留。", true);
+  }
+}
 function key(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -105,19 +177,15 @@ function renderMessages() {
     article.append(bubble);
     const controls = document.createElement("div");
     controls.className = "message-tools";
-    const copy = document.createElement("button");
-    copy.textContent = "复制";
-    copy.setAttribute("aria-label", "复制这条记录");
-    copy.onclick = () =>
+    const copy = toolButton("copy", "复制这条记录", () =>
       call("copy", { text: entry.text })
         .then(() => toast("已复制"))
-        .catch(() => {});
-    const remove = document.createElement("button");
-    remove.textContent = "删除";
-    remove.className = "danger";
-    remove.setAttribute("aria-label", "删除这条记录");
-    remove.onclick = () => askDelete(entry);
-    controls.append(copy, remove);
+        .catch(() => {}),
+    );
+    const edit = toolButton("edit", "编辑这条记录", () => startEdit(entry));
+    const remove = toolButton("delete", "删除这条记录", () => askDelete(entry));
+    remove.classList.add("danger");
+    controls.append(copy, edit, remove);
     article.append(controls);
     list.append(article);
   }
@@ -283,6 +351,65 @@ $("copy-all").onclick = () => {
     .catch(() => {});
 };
 $("delete-all").onclick = () => askDelete();
+$("edit-text").oninput = () => {
+  $("save-edit").disabled = savingEdit || !$("edit-text").value.trim();
+  rememberEdit();
+};
+async function cancelEdit() {
+  if (savingEdit) return;
+  try {
+    await call("clear-edit-draft");
+    $("edit-dialog").close();
+  } catch (error) {
+    $("edit-status").textContent = error.message;
+  }
+}
+$("cancel-edit").onclick = cancelEdit;
+$("edit-dialog").addEventListener("cancel", (event) => {
+  event.preventDefault();
+  cancelEdit();
+});
+$("edit-dialog").addEventListener("close", () => {
+  editing = null;
+  $("edit-text").value = "";
+});
+$("edit-text").onkeydown = (event) => {
+  if (
+    event.key === "Enter" &&
+    (event.ctrlKey || event.metaKey) &&
+    !event.isComposing &&
+    event.keyCode !== 229
+  ) {
+    event.preventDefault();
+    $("edit-form").requestSubmit();
+  }
+};
+$("edit-form").onsubmit = async (event) => {
+  event.preventDefault();
+  if (!editing || savingEdit || !$("edit-text").value.trim()) return;
+  savingEdit = true;
+  $("save-edit").disabled = $("cancel-edit").disabled = true;
+  $("edit-text").readOnly = true;
+  $("edit-status").textContent = "正在保存…";
+  const scrollTop = $("messages").scrollTop;
+  try {
+    const result = await call("edit", {
+      ...editing,
+      text: $("edit-text").value,
+    });
+    apply(result.state);
+    $("messages").scrollTop = scrollTop;
+    $("edit-dialog").close();
+    toast("修改已保存");
+  } catch (error) {
+    $("edit-status").textContent = error.message;
+  } finally {
+    savingEdit = false;
+    $("edit-text").readOnly = false;
+    $("cancel-edit").disabled = false;
+    $("save-edit").disabled = !$("edit-text").value.trim();
+  }
+};
 $("cancel-delete").onclick = () => $("delete-dialog").close();
 $("confirm-delete").onclick = async () => {
   $("confirm-delete").disabled = true;
@@ -403,5 +530,6 @@ call("load")
     apply(result.state);
     if (result.state.draft) toast("已恢复上次未发送的内容");
     $("editor").focus();
+    restoreEdit(result.editDraft);
   })
   .catch(() => {});

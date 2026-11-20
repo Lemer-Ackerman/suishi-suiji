@@ -90,6 +90,16 @@ const { parseEntries } = require("../src/entries.cjs");
       await page.locator(".message-time").textContent(),
       /^\d{2}:\d{2}:\d{2}$/,
     );
+    const original = parseEntries(fs.readFileSync(file, "utf8"))[0];
+    await page.getByRole("button", { name: "编辑这条记录" }).click();
+    await page.locator("#edit-text").fill("安装后的编辑也能保存 🌱");
+    await page.locator("#save-edit").click();
+    await page.waitForFunction(
+      () => !document.querySelector("#edit-dialog").open,
+    );
+    assert.deepEqual(parseEntries(fs.readFileSync(file, "utf8")), [
+      { ...original, text: "安装后的编辑也能保存 🌱" },
+    ]);
     await page.locator("#more").click();
     await page.locator("#settings").click();
     await page.locator("#start-on-login").check();
@@ -122,7 +132,7 @@ const { parseEntries } = require("../src/entries.cjs");
       document.querySelector("#settings-status").textContent.includes("已关闭"),
     );
     console.log(
-      "Installed app launched, saved timestamped records, and enabled/disabled startup.",
+      "Installed app launched, saved and edited timestamped records, and enabled/disabled startup.",
     );
   } finally {
     await app.close();
