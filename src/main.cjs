@@ -45,6 +45,7 @@ let win,
   store,
   draftStore,
   settingsFile,
+  editDraftFile,
   activeDate,
   currentDay,
   rolloverTimer,
@@ -55,6 +56,21 @@ let shortcutActive = false;
 let settings = { shortcut: "Shift+Space" };
 let lastError = "";
 const pageFile = path.join(__dirname, "index.html");
+function readEditDraft() {
+  try {
+    return JSON.parse(fs.readFileSync(editDraftFile, "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") lastError = "编辑草稿无法读取，原记录仍保留。";
+    return null;
+  }
+}
+function clearEditDraft() {
+  try {
+    fs.unlinkSync(editDraftFile);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+}
 
 function status(message, error = false) {
   lastError = error ? message : "";
@@ -223,6 +239,7 @@ else {
     .then(async () => {
       startup = createStartup(app);
       settingsFile = path.join(app.getPath("userData"), "settings.json");
+      editDraftFile = path.join(app.getPath("userData"), "edit-draft.json");
       try {
         const loaded = JSON.parse(fs.readFileSync(settingsFile, "utf8"));
         if (typeof loaded.shortcut === "string")
@@ -313,8 +330,37 @@ else {
           return { ok: false, error: "不允许的请求。" };
         try {
           switch (action) {
-            case "load":
-              return { ok: true, state: snapshot() };
+            case "load": {
+              const editDraft = readEditDraft();
+              return { ok: true, state: snapshot(), editDraft };
+            }
+            case "edit-draft": {
+              if (
+                !validDate(payload.date) ||
+                !validId(payload.id) ||
+                payload.folder !== store.root ||
+                typeof payload.text !== "string" ||
+                typeof payload.originalText !== "string" ||
+                Buffer.byteLength(payload.text, "utf8") > MAX_BYTES ||
+                Buffer.byteLength(payload.originalText, "utf8") > MAX_BYTES
+              )
+                throw new Error("编辑草稿格式不正确或超过 1 MB。");
+              atomicWrite(
+                editDraftFile,
+                JSON.stringify({
+                  date: payload.date,
+                  id: payload.id,
+                  folder: store.root,
+                  originalText: payload.originalText,
+                  text: payload.text,
+                  time: typeof payload.time === "string" ? payload.time : null,
+                }),
+              );
+              return { ok: true };
+            }
+            case "clear-edit-draft":
+              clearEditDraft();
+              return { ok: true };
             case "draft":
               draftStore.save(payload.date, {
                 id: payload.id,
@@ -345,6 +391,40 @@ else {
               try {
                 if (draftStore.read(payload.date)?.id === payload.id)
                   draftStore.clear(payload.date);
+              } catch {}
+              lastError = "";
+              break;
+            }
+            case "edit": {
+              if (
+                !validDate(payload.date) ||
+                !validId(payload.id) ||
+                typeof payload.text !== "string" ||
+                !payload.text.trim() ||
+                typeof payload.originalText !== "string"
+              )
+                throw new Error("记录内容不能为空；如需删除，请使用删除按钮。");
+              if (Buffer.byteLength(payload.text, "utf8") > MAX_BYTES)
+                throw new Error("单日笔记请保持在 1 MB 以内。");
+              const entries = parseEntries(store.read(payload.date));
+              const entry = entries.find((item) => item.id === payload.id);
+              if (!entry)
+                throw new Error(
+                  "这条记录已不存在，请关闭编辑后重新打开该日期。",
+                );
+              // Do not overwrite a record changed on disk since the editor opened.
+              // An already committed retry is safe to acknowledge.
+              if (entry.text !== payload.text) {
+                if (entry.text !== payload.originalText)
+                  throw new Error(
+                    "这条记录已在别处修改，请先复制你的修改，再重新打开该日期。",
+                  );
+                entry.text = payload.text;
+                store.save(payload.date, serializeEntries(entries));
+              }
+              // The note is already committed. A failed cleanup can safely retry.
+              try {
+                clearEditDraft();
               } catch {}
               lastError = "";
               break;

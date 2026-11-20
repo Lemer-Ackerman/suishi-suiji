@@ -90,6 +90,27 @@
       </div>
       <p class="muted">每个记事日从凌晨 4:00 开始。</p>
     </dialog>
+    <dialog id="edit-dialog" aria-labelledby="edit-title">
+      <form id="edit-form">
+        <div class="dialog-heading"><h2 id="edit-title">编辑记录</h2></div>
+        <p id="edit-time" class="muted"></p>
+        <label for="edit-text" class="sr-only">修改记录内容</label>
+        <textarea
+          id="edit-text"
+          rows="7"
+          spellcheck="false"
+          aria-describedby="edit-help edit-status"
+        ></textarea>
+        <p id="edit-help" class="muted">
+          保留原记录时间 · Enter 换行 · Ctrl / ⌘ + Enter 保存
+        </p>
+        <p id="edit-status" role="status"></p>
+        <div class="dialog-actions">
+          <button id="cancel-edit" type="button" class="secondary">取消</button>
+          <button id="save-edit" type="submit" class="primary">保存修改</button>
+        </div>
+      </form>
+    </dialog>
     <dialog id="delete-dialog">
       <div class="dialog-heading">
         <h2 id="delete-title">删除这条记录？</h2>
